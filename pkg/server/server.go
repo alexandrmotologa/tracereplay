@@ -309,10 +309,22 @@ func (s *Server) handleForkTrajectory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleReplayTrajectory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
 	var req models.ReplayRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		http.Error(w, "Invalid replay body", http.StatusBadRequest)
 		return
+	}
+
+	// Default to AutoResume=true if not explicitly declared in request
+	if !strings.Contains(string(bodyBytes), "auto_resume") {
+		req.AutoResume = true
 	}
 
 	forked, mutatedStep, err := s.engine.ReplayWithMutation(id, req)

@@ -124,9 +124,10 @@ type ToolOverride struct {
 
 // ReplayRequest payload for rewinding, mutating, and resuming trajectory execution.
 type ReplayRequest struct {
-	FromStep  int             `json:"from_step"`
-	Name      string          `json:"name,omitempty"`
-	Mutation  *ReplayMutation `json:"mutation,omitempty"`
+	FromStep   int             `json:"from_step"`
+	Name       string          `json:"name,omitempty"`
+	AutoResume bool            `json:"auto_resume,omitempty"`
+	Mutation   *ReplayMutation `json:"mutation,omitempty"`
 }
 
 // TrajectoryDiff captures the difference between a baseline and comparison trajectory.

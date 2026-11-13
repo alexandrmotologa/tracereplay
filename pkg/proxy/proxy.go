@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -139,26 +140,37 @@ func (p *Proxy) handleOpenAIChat(w http.ResponseWriter, r *http.Request) {
 		lastPrompt = string(bytesVal)
 	}
 
+	// Resolve live upstream target if configured or if client provided API key
+	upstreamURL := p.upstreamBaseURL
+	clientKey := r.Header.Get("Authorization")
+	if upstreamURL == "" {
+		if clientKey != "" || os.Getenv("OPENAI_API_KEY") != "" {
+			upstreamURL = "https://api.openai.com/v1"
+		}
+	}
+
 	var responseText string
 	var inputTokens, outputTokens int
 	var detectedToolCalls []models.ToolCall
 
-	if p.upstreamBaseURL != "" {
-		upstreamURL := p.upstreamBaseURL + "/chat/completions"
-		upstreamReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(bodyBytes))
+	if upstreamURL != "" {
+		targetURL := strings.TrimSuffix(upstreamURL, "/") + "/chat/completions"
+		upstreamReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, bytes.NewReader(bodyBytes))
 		if err != nil {
 			http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
 			return
 		}
 		upstreamReq.Header = r.Header.Clone()
-		if p.apiKey != "" {
+		if p.apiKey != "" && clientKey == "" {
 			upstreamReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+		} else if clientKey == "" && os.Getenv("OPENAI_API_KEY") != "" {
+			upstreamReq.Header.Set("Authorization", "Bearer "+os.Getenv("OPENAI_API_KEY"))
 		}
 
 		client := &http.Client{Timeout: 90 * time.Second}
 		resp, err := client.Do(upstreamReq)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Upstream error: %v", err), http.StatusBadGateway)
+			http.Error(w, fmt.Sprintf("Upstream connection error: %v", err), http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close()
@@ -224,14 +236,14 @@ func (p *Proxy) handleOpenAIChat(w http.ResponseWriter, r *http.Request) {
 					detectedToolCalls = append(detectedToolCalls, models.ToolCall{
 						ToolName:   tc.Function.Name,
 						Arguments:  json.RawMessage(tc.Function.Arguments),
-						Output:     "Tool scheduled for execution",
+						Output:     "Tool execution scheduled by agent",
 						DurationMS: 5,
 					})
 				}
 			}
 		}
 	} else {
-		// Mock Standalone Mode
+		// Offline Deterministic Simulation
 		responseText = fmt.Sprintf("TraceReplay recorded response for prompt: %s", lastPrompt)
 		inputTokens = len(lastPrompt) / 4
 		if inputTokens < 12 {
@@ -374,38 +386,123 @@ func (p *Proxy) handleAnthropicMessages(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	responseText := fmt.Sprintf("TraceReplay recorded Anthropic response for: %s", lastPrompt)
-	inputTokens := len(lastPrompt)/4 + 20
-	outputTokens := len(responseText)/4 + 15
-
-	mockResp := map[string]any{
-		"id":      "msg_" + uuid.New().String(),
-		"type":    "message",
-		"role":    "assistant",
-		"model":   anthropicReq.Model,
-		"content": []map[string]any{{"type": "text", "text": responseText}},
-		"usage": map[string]any{
-			"input_tokens":  inputTokens,
-			"output_tokens": outputTokens,
-		},
+	// Resolve upstream for Anthropic
+	upstreamURL := p.upstreamBaseURL
+	clientKey := r.Header.Get("x-api-key")
+	if upstreamURL == "" {
+		if clientKey != "" || os.Getenv("ANTHROPIC_API_KEY") != "" {
+			upstreamURL = "https://api.anthropic.com/v1"
+		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(mockResp)
+	var responseText string
+	var inputTokens, outputTokens int
+	var detectedToolCalls []models.ToolCall
+
+	if upstreamURL != "" {
+		targetURL := strings.TrimSuffix(upstreamURL, "/") + "/messages"
+		upstreamReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
+			return
+		}
+		upstreamReq.Header = r.Header.Clone()
+		upstreamReq.Header.Set("anthropic-version", "2023-06-01")
+
+		if clientKey == "" && p.apiKey != "" {
+			upstreamReq.Header.Set("x-api-key", p.apiKey)
+		} else if clientKey == "" && os.Getenv("ANTHROPIC_API_KEY") != "" {
+			upstreamReq.Header.Set("x-api-key", os.Getenv("ANTHROPIC_API_KEY"))
+		}
+
+		client := &http.Client{Timeout: 90 * time.Second}
+		resp, err := client.Do(upstreamReq)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Upstream connection error: %v", err), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		for k, v := range resp.Header {
+			w.Header()[k] = v
+		}
+		w.WriteHeader(resp.StatusCode)
+
+		respBytes, _ := io.ReadAll(resp.Body)
+		w.Write(respBytes)
+
+		var antResp struct {
+			Content []struct {
+				Type  string `json:"type"`
+				Text  string `json:"text,omitempty"`
+				Name  string `json:"name,omitempty"`
+				Input any    `json:"input,omitempty"`
+			} `json:"content"`
+			Usage struct {
+				InputTokens  int `json:"input_tokens"`
+				OutputTokens int `json:"output_tokens"`
+			} `json:"usage"`
+		}
+
+		if err := json.Unmarshal(respBytes, &antResp); err == nil {
+			inputTokens = antResp.Usage.InputTokens
+			outputTokens = antResp.Usage.OutputTokens
+
+			for _, c := range antResp.Content {
+				if c.Type == "text" {
+					responseText += c.Text
+				} else if c.Type == "tool_use" {
+					argsJSON, _ := json.Marshal(c.Input)
+					detectedToolCalls = append(detectedToolCalls, models.ToolCall{
+						ToolName:   c.Name,
+						Arguments:  argsJSON,
+						Output:     "Tool execution scheduled by agent",
+						DurationMS: 5,
+					})
+				}
+			}
+		}
+	} else {
+		// Offline simulation fallback
+		responseText = fmt.Sprintf("TraceReplay recorded Anthropic response for: %s", lastPrompt)
+		inputTokens = len(lastPrompt)/4 + 20
+		outputTokens = len(responseText)/4 + 15
+
+		mockResp := map[string]any{
+			"id":      "msg_" + uuid.New().String(),
+			"type":    "message",
+			"role":    "assistant",
+			"model":   anthropicReq.Model,
+			"content": []map[string]any{{"type": "text", "text": responseText}},
+			"usage": map[string]any{
+				"input_tokens":  inputTokens,
+				"output_tokens": outputTokens,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(mockResp)
+	}
 
 	durationMS := time.Since(startTime).Milliseconds()
 
 	if traj != nil {
+		stepType := models.StepTypeLLMGeneration
+		if len(detectedToolCalls) > 0 {
+			stepType = models.StepTypeToolCall
+		}
+
 		step := &models.Step{
 			TrajectoryID: traj.ID,
 			StepIndex:    stepIdx,
-			StepType:     models.StepTypeLLMGeneration,
+			StepType:     stepType,
 			Prompt:       lastPrompt,
 			Response:     responseText,
 			DurationMS:   durationMS,
 			InputTokens:  inputTokens,
 			OutputTokens: outputTokens,
 			Status:       models.StepStatusSuccess,
+			ToolCalls:    detectedToolCalls,
 		}
 		_ = p.engine.RecordStep(step)
 	}
