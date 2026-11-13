@@ -1,0 +1,199 @@
+const fs = require('fs');
+const path = require('path');
+const { Resvg } = require('@resvg/resvg-js');
+
+function buildLogoSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="squircle-clip">
+      <rect x="24" y="24" width="976" height="976" rx="220" />
+    </clipPath>
+
+    <linearGradient id="cyan-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f5ff"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <linearGradient id="cyan-linear" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <linearGradient id="amber-rewind" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+
+    <linearGradient id="slate-body" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0b0f19"/>
+    </linearGradient>
+
+    <filter id="subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.14" />
+    </filter>
+  </defs>
+
+  <!-- Luxury White Squircle Container -->
+  <rect x="24" y="24" width="976" height="976" rx="220" fill="#ffffff" stroke="#e2e8f0" stroke-width="6" />
+
+  <g clip-path="url(#squircle-clip)">
+    <g transform="translate(512, 512)" filter="url(#subtle-shadow)">
+
+      <!-- Hexagonal Architectural Gateway -->
+      <polygon points="
+        0,-410
+        355,-205
+        355,205
+        0,410
+        -355,205
+        -355,-205
+      " fill="none" stroke="#0f172a" stroke-width="40" stroke-linejoin="round" />
+
+      <polygon points="
+        0,-375
+        324,-187
+        324,187
+        0,375
+        -324,187
+        -324,-187
+      " fill="none" stroke="#00f5ff" stroke-width="4" opacity="0.45" stroke-dasharray="16, 12" />
+
+      <!-- Symmetrical Origami Chrono-Hare Mascot (Centered at 0,0) -->
+      <!-- 1. Watertight Solid Base Silhouette (Zero-Leak Base) -->
+      <path d="
+        M 0 -310
+        L 50 -260
+        L 110 -360
+        L 150 -340
+        L 180 -210
+        L 145 -110
+        L 185 10
+        L 255 170
+        L 220 280
+        L 130 250
+        L 0 350
+        L -130 250
+        L -220 280
+        L -255 170
+        L -185 10
+        L -145 -110
+        L -180 -210
+        L -150 -340
+        L -110 -360
+        L -50 -260
+        Z
+      " fill="#0b0f19" />
+
+      <!-- 2. Outer Ears Facets -->
+      <!-- Left Ear Outer -->
+      <polygon points="-110,-360 -150,-340 -180,-210 -130,-170" fill="#1e293b" />
+      <polygon points="-110,-360 -130,-170 -90,-210" fill="#334155" />
+      <polygon points="-90,-210 -130,-170 -145,-110 -80,-120" fill="#0f172a" />
+
+      <!-- Right Ear Outer -->
+      <polygon points="110,-360 150,-340 180,-210 130,-170" fill="#334155" />
+      <polygon points="110,-360 130,-170 90,-210" fill="#475569" />
+      <polygon points="90,-210 130,-170 145,-110 80,-120" fill="#1e293b" />
+
+      <!-- Inner Ear Telemetry Channels (Electric Cyan Accents) -->
+      <polygon points="-110,-330 -135,-220 -95,-180" fill="url(#cyan-glow)" opacity="0.85" />
+      <polygon points="110,-330 135,-220 95,-180" fill="url(#cyan-glow)" opacity="0.85" />
+
+      <!-- Ear Crown Bridge -->
+      <polygon points="0,-310 -50,-260 -90,-210 0,-180" fill="#1e293b" />
+      <polygon points="0,-310 50,-260 90,-210 0,-180" fill="#334155" />
+
+      <!-- 3. Forehead & Cranial Geometry -->
+      <polygon points="0,-180 -80,-120 0,-90" fill="#334155" />
+      <polygon points="0,-180 80,-120 0,-90" fill="#475569" />
+
+      <polygon points="0,-90 -80,-120 -110,-50 0,-30" fill="#1e293b" />
+      <polygon points="0,-90 80,-120 110,-50 0,-30" fill="#334155" />
+
+      <!-- Temporal Ridges & Cheek Flare -->
+      <polygon points="-80,-120 -145,-110 -185,10 -110,-50" fill="#0f172a" />
+      <polygon points="80,-120 145,-110 185,10 110,-50" fill="#1e293b" />
+
+      <polygon points="-110,-50 -185,10 -130,70 -60,25" fill="#1e293b" />
+      <polygon points="110,-50 185,10 130,70 60,25" fill="#334155" />
+
+      <!-- 4. Alert Predatory Eyes (Electric Cyan Optics with Slit Cant) -->
+      <!-- Left Eye Socket & Optical Aperture -->
+      <polygon points="-110,-45 -45,-30 -85,5" fill="#0b0f19" />
+      <polygon points="-100,-40 -55,-28 -80,0" fill="url(#cyan-glow)" />
+      <!-- Right Eye Socket & Optical Aperture -->
+      <polygon points="110,-45 45,-30 85,5" fill="#0b0f19" />
+      <polygon points="100,-40 55,-28 80,0" fill="url(#cyan-glow)" />
+
+      <!-- 5. Bridge of Nose, Muzzle & Cheeks (Refined Slate Titanium, No Buck Teeth) -->
+      <polygon points="0,-30 -45,-30 -60,25 0,35" fill="#334155" />
+      <polygon points="0,-30 45,-30 60,25 0,35" fill="#475569" />
+
+      <!-- Lateral Muzzle Wings -->
+      <polygon points="-60,25 -130,70 -85,115 -25,85" fill="#1e293b" />
+      <polygon points="60,25 130,70 85,115 25,85" fill="#334155" />
+
+      <!-- Compact Aerodynamic Nose Cone -->
+      <polygon points="0,35 -25,45 -25,75 0,90" fill="#0f172a" />
+      <polygon points="0,35 25,45 25,75 0,90" fill="#1e293b" />
+
+      <!-- Muzzle / Upper Lip Plate (Refined Slate Tone) -->
+      <polygon points="-25,75 -25,85 -55,130 0,135" fill="#334155" />
+      <polygon points="25,75 25,85 55,130 0,135" fill="#475569" />
+
+      <!-- Chin Apex -->
+      <polygon points="0,135 -40,165 0,185" fill="#1e293b" />
+      <polygon points="0,135 40,165 0,185" fill="#334155" />
+
+      <!-- 6. Collar & Jawline Armor -->
+      <polygon points="-130,70 -85,115 -145,180 -195,140" fill="#0b0f19" />
+      <polygon points="130,70 85,115 145,180 195,140" fill="#1e293b" />
+
+      <polygon points="-85,115 -40,165 -110,215 -145,180" fill="#1e293b" />
+      <polygon points="85,115 40,165 110,215 145,180" fill="#334155" />
+
+      <!-- 7. Massive Chest Armor & Time-Travel Rewind Nexus (<<) -->
+      <!-- Shoulder Plates -->
+      <polygon points="-195,140 -255,170 -220,280 -140,240 -145,180" fill="#0f172a" />
+      <polygon points="195,140 255,170 220,280 140,240 145,180" fill="#1e293b" />
+
+      <!-- Lower Collar Plates -->
+      <polygon points="-140,240 -110,215 0,265 -130,250" fill="#1e293b" />
+      <polygon points="140,240 110,215 0,265 130,250" fill="#334155" />
+
+      <!-- Center Chest Core Backing -->
+      <polygon points="0,185 -70,230 -50,300 0,350" fill="#0b0f19" />
+      <polygon points="0,185 70,230 50,300 0,350" fill="#1e293b" />
+
+      <!-- Time-Travel Rewind Dual Chevron Nexus (<<) -->
+      <!-- Chevron 1 (Inner Left, Amber-Gold Accent) -->
+      <polygon points="-25,230 15,200 5,230 -15,245 5,260 15,290 -25,260" fill="url(#amber-rewind)" />
+
+      <!-- Chevron 2 (Outer Left, Electric Cyan Accent) -->
+      <polygon points="-65,230 -25,200 -35,230 -55,245 -35,260 -25,290 -65,260" fill="url(#cyan-glow)" />
+
+      <!-- Chevron 1 Symmetry Accent (Right Trajectory Vector) -->
+      <polygon points="45,230 65,245 45,260 55,290 85,245 55,200" fill="url(#cyan-glow)" opacity="0.65" />
+
+    </g>
+  </g>
+</svg>`;
+}
+
+async function renderLogo() {
+  const svg = buildLogoSvg();
+  const outputDir = path.join(__dirname, '..', 'docs', 'images');
+  const svgPath = path.join(outputDir, 'logo.svg');
+  const pngPath = path.join(outputDir, 'logo.png');
+
+  fs.writeFileSync(svgPath, svg);
+  const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 1024 } });
+  fs.writeFileSync(pngPath, resvg.render().asPng());
+  console.log('✓ Successfully rendered docs/images/logo.svg and docs/images/logo.png at 1024x1024');
+}
+
+renderLogo().catch((err) => {
+  console.error('Failed to render logo:', err);
+  process.exit(1);
+});

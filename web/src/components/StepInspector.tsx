@@ -55,12 +55,12 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
   const isFail = step.status === 'failed';
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto bg-background/50 p-6 space-y-6">
+    <div className="flex-1 flex flex-col overflow-y-auto bg-background/50 p-3 sm:p-6 space-y-4 sm:space-y-6">
       {/* Top Banner / Metrics Card */}
-      <div className="rounded-2xl bg-surface border border-surface-border p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      <div className="rounded-2xl bg-surface border border-surface-border p-3.5 sm:p-4 shadow-sm flex flex-wrap items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3">
           <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
               isFail
                 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
                 : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
@@ -80,7 +80,7 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               <span className="text-[11px] text-slate-400 font-mono">
                 Hash: {step.state_hash ? step.state_hash.substring(0, 16) + '...' : 'none'}
               </span>
@@ -101,13 +101,14 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onOpenExportModal}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-border border border-surface-border text-xs font-medium text-slate-200 transition-colors"
           >
             <Download className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Export Regression Suite</span>
+            <span className="hidden sm:inline">Export Regression Suite</span>
+            <span className="sm:hidden">Export Suite</span>
           </button>
 
           <button
@@ -115,7 +116,8 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-950/50 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Time-Travel Rewind Here</span>
+            <span className="hidden sm:inline">Time-Travel Rewind Here</span>
+            <span className="sm:hidden">Rewind</span>
           </button>
         </div>
       </div>

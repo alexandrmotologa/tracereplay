@@ -40,6 +40,7 @@ export function App() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Load trajectories list
   const loadTrajectories = useCallback(async () => {
@@ -205,19 +206,48 @@ export function App() {
         onRefresh={loadTrajectories}
         isWsConnected={isWsConnected}
         selectedTrajectoryCount={diffSelection.length}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
 
       {/* Main Workspace Body */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Trajectory Sidebar */}
-        <TrajectoryList
-          trajectories={trajectories}
-          selectedId={selectedTrajectory?.id || null}
-          onSelect={handleSelectTrajectory}
-          onDelete={handleDeleteTrajectory}
-          diffSelection={diffSelection}
-          onToggleDiffSelection={handleToggleDiffSelection}
-        />
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Desktop Left Trajectory Sidebar */}
+        <div className="hidden md:flex">
+          <TrajectoryList
+            trajectories={trajectories}
+            selectedId={selectedTrajectory?.id || null}
+            onSelect={handleSelectTrajectory}
+            onDelete={handleDeleteTrajectory}
+            diffSelection={diffSelection}
+            onToggleDiffSelection={handleToggleDiffSelection}
+          />
+        </div>
+
+        {/* Mobile Left Trajectory Drawer Backdrop & Sheet */}
+        {isMobileSidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden flex"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <div
+              className="w-80 max-w-[85vw] h-full bg-surface shadow-2xl z-40 border-r border-surface-border flex flex-col animate-in slide-in-from-left duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <TrajectoryList
+                trajectories={trajectories}
+                selectedId={selectedTrajectory?.id || null}
+                onSelect={(id) => {
+                  handleSelectTrajectory(id);
+                  setIsMobileSidebarOpen(false);
+                }}
+                onDelete={handleDeleteTrajectory}
+                diffSelection={diffSelection}
+                onToggleDiffSelection={handleToggleDiffSelection}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Center / Right Content Area */}
         <main className="flex-1 flex flex-col overflow-hidden bg-background">

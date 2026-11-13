@@ -68,10 +68,10 @@ export const TimelineScrubber: React.FC<TimelineScrubberProps> = ({
   };
 
   return (
-    <div className="border-b border-surface-border bg-surface-elevated/40 p-4 space-y-3">
+    <div className="border-b border-surface-border bg-surface-elevated/40 p-3 sm:p-4 space-y-3">
       {/* Top controls: Step selector & Rewind Button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Nav buttons */}
           <div className="flex items-center gap-1 bg-surface-elevated p-1 rounded-lg border border-surface-border">
             <button
