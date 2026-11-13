@@ -23,8 +23,11 @@ TraceReplay solves this by capturing every step (prompts, tool calls, API comple
 
 - **Zero-Code Transparent Proxy**: Intercepts OpenAI, Anthropic, and local Ollama API calls without requiring SDK code modifications. Set `OPENAI_BASE_URL=http://localhost:8080/v1` or use `tracereplay record -- python agent.py`.
 - **Deterministic State Fingerprints**: Calculates SHA-256 state hashes across prompt history, canonicalized tool calls, and memory variables to detect non-deterministic trajectory drift.
-- **Time-Travel Rewind & Forking**: Rewinds execution to step `K`. Pre-fork steps are served from virtual cache (< 5ms latency). Fork branches allow comparing original failed runs against repaired trajectories.
-- **1-Click CI Regression Synthesis**: Auto-generates standalone, offline unit tests for Go (`testing`), Python (`pytest`), and deterministic JSON specifications without live model dependencies.
+- **Time-Travel Rewind, Forking & Hot-Switching**: Rewinds execution to step `K`. Pre-fork steps are served from virtual cache (< 5ms latency). Supports model hot-switching (e.g. testing with local Ollama or Claude).
+- **Tool Side-Effect Virtualizer (Mock Gateway)**: Intercepts external tool invocations at `/v1/tools/execute`. Pre-fork steps return recorded mock outputs, guaranteeing zero accidental side-effects during replay.
+- **Root-Cause Diagnostic & AI Auto-Fix**: Automatically isolates the step where hallucinations or invalid parameters were synthesized, offering one-click rewind mutations.
+- **1-Click Multi-Language Regression Exporter**: Auto-generates standalone, offline unit tests for Go (`testing`), Python (`pytest`), TypeScript (`vitest`/`jest`), and OpenInference/OTel traces.
+- **Execution DAG Flow in React 19 Studio**: Visual graph showing sequential nodes, branch genealogies, and tool execution states.
 - **High-Performance Single Binary**: Pure Go backend using embedded SQLite and embedded React 19 studio. Binary size is under 15MB with sub-5ms proxy overhead and zero external CGO dependencies.
 - **Built-in 15-Step Agent Sandbox**: Includes a reproducible, multi-tool autonomous code migration scenario demonstrating failure at step 12 and time-travel recovery from step 8.
 
@@ -159,7 +162,7 @@ Generate offline regression suites for CI/CD pipelines:
 | `record` | Wrap an external process and record API calls | `--port`, `--db`, `-- <command> [args...]` |
 | `agent run` | Execute built-in 15-step demo scenario | `--fail` (default: true), `--fixed-version`, `--db` |
 | `replay` | Rewind to step K, mutate state, and resume | `--id`, `--step`, `--rewind-to-step`, `--prompt`, `--patch-prompt`, `--db` |
-| `export` | Generate regression test suite | `--id`, `--format` (go/python/pytest/json), `--output`, `--db` |
+| `export` | Generate regression test suite or OTel trace | `--id`, `--format` (go/python/pytest/ts/vitest/otel/json), `--output`, `--db` |
 | `test` | Verify deterministic JSON test suite | `<suite.json>` |
 | `diff` | Compare two trajectories side-by-side | `<id1> <id2> [--db path]` |
 | `version` | Print current version | |

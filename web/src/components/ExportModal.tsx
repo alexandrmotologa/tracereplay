@@ -9,7 +9,7 @@ interface ExportModalProps {
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, trajectoryId }) => {
-  const [format, setFormat] = useState<'go' | 'python' | 'json'>('go');
+  const [format, setFormat] = useState<'go' | 'python' | 'ts' | 'otel' | 'json'>('go');
   const [code, setCode] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
@@ -48,6 +48,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, traje
     let filename = `trajectory_regression_${trajectoryId}.json`;
     if (format === 'go') filename = `trajectory_regression_test.go`;
     if (format === 'python') filename = `test_trajectory_regression.py`;
+    if (format === 'ts') filename = `trajectory_regression.test.ts`;
+    if (format === 'otel') filename = `openinference_trace.json`;
 
     const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -70,9 +72,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, traje
               <Code className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-100">Export Regression Suite</h3>
+              <h3 className="font-bold text-sm text-slate-100">Export Regression Suite & OpenTelemetry</h3>
               <p className="text-xs text-slate-400">
-                Generate standalone regression tests for CI/CD pipeline verification
+                Generate offline tests or OpenInference traces for CI/CD and observability platforms
               </p>
             </div>
           </div>
@@ -87,7 +89,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, traje
         {/* Format Selector Tabs */}
         <div className="px-6 py-3 border-b border-surface-border flex items-center justify-between bg-surface-elevated/30">
           <div className="flex gap-2">
-            {(['go', 'python', 'json'] as const).map((fmt) => (
+            {(['go', 'python', 'ts', 'otel', 'json'] as const).map((fmt) => (
               <button
                 key={fmt}
                 onClick={() => setFormat(fmt)}
@@ -97,7 +99,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, traje
                     : 'bg-surface-elevated text-slate-400 hover:text-slate-200 border border-surface-border'
                 }`}
               >
-                {fmt === 'go' ? 'Go Test' : fmt === 'python' ? 'Python (pytest)' : 'JSON Spec'}
+                {fmt === 'go'
+                  ? 'Go Test'
+                  : fmt === 'python'
+                  ? 'Python (pytest)'
+                  : fmt === 'ts'
+                  ? 'TypeScript (Vitest)'
+                  : fmt === 'otel'
+                  ? 'OpenInference (OTel)'
+                  : 'JSON Spec'}
               </button>
             ))}
           </div>

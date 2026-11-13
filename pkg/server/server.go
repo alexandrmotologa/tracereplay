@@ -97,6 +97,7 @@ func (s *Server) setupRoutes() {
 		// Trajectories
 		r.Get("/trajectories", s.handleListTrajectories)
 		r.Post("/trajectories", s.handleCreateTrajectory)
+		r.Post("/trajectories/import", s.handleImportTrajectory)
 		r.Get("/trajectories/{id}", s.handleGetTrajectory)
 		r.Delete("/trajectories/{id}", s.handleDeleteTrajectory)
 		r.Post("/trajectories/{id}/steps", s.handleCreateStep)
@@ -109,11 +110,20 @@ func (s *Server) setupRoutes() {
 		// Diffing
 		r.Get("/diff", s.handleDiffTrajectories)
 
+		// Root-Cause Diagnostic
+		r.Get("/trajectories/{id}/diagnostics", s.handleTrajectoryDiagnostics)
+
+		// Stability & Flakiness Report
+		r.Get("/trajectories/{id}/stability", s.handleTrajectoryStability)
+
 		// Regression Exporter
 		r.Get("/trajectories/{id}/export", s.handleExportRegression)
 
 		// Demo Agent Scenario
 		r.Post("/demo/run", s.handleRunDemo)
+
+		// Tool Side-Effect Virtualizer Gateway
+		r.Post("/tools/execute", s.handleVirtualToolExecute)
 	})
 
 	// Serve Static Frontend if embedded or provided
@@ -187,6 +197,32 @@ func (s *Server) handleCreateTrajectory(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	writeJSON(w, http.StatusCreated, traj)
+}
+
+func (s *Server) handleImportTrajectory(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	traj, err := exporter.ImportOpenInferenceJSON(data)
+	if err != nil {
+		http.Error(w, "Failed to import OpenInference trace: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.engine.GetStorage().CreateTrajectory(traj); err != nil {
+		http.Error(w, "Failed to persist imported trajectory: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for i := range traj.Steps {
+		_ = s.engine.GetStorage().CreateStep(&traj.Steps[i])
 	}
 
 	writeJSON(w, http.StatusCreated, traj)
@@ -362,9 +398,98 @@ func (s *Server) handleExportRegression(w http.ResponseWriter, r *http.Request) 
 		w.Header().Set("Content-Disposition", `attachment; filename="test_trajectory_regression.py"`)
 		w.Write([]byte(code))
 
+	case "ts", "typescript", "vitest", "jest":
+		code, err := exporter.ExportTypeScriptTest(traj)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="trajectory_regression.test.ts"`)
+		w.Write([]byte(code))
+
+	case "otel", "openinference":
+		bytes, err := exporter.ExportOpenInferenceJSON(traj)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Disposition", `attachment; filename="openinference_trace.json"`)
+		w.Write(bytes)
+
 	default:
 		http.Error(w, "Unsupported export format (supported: json, go, python)", http.StatusBadRequest)
 	}
+}
+
+func (s *Server) handleTrajectoryDiagnostics(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	traj, err := s.engine.GetStorage().GetTrajectory(id)
+	if err != nil {
+		http.Error(w, "Trajectory not found", http.StatusNotFound)
+		return
+	}
+
+	diag := engine.AnalyzeTrajectoryRootCause(traj)
+	if diag == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":  "clean",
+			"message": "No failure detected in trajectory",
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, diag)
+}
+
+func (s *Server) handleTrajectoryStability(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	traj, err := s.engine.GetStorage().GetTrajectory(id)
+	if err != nil {
+		http.Error(w, "Trajectory not found", http.StatusNotFound)
+		return
+	}
+
+	report := engine.ComputeStabilityReport(traj)
+	if report == nil {
+		http.Error(w, "No steps recorded for trajectory", http.StatusBadRequest)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) handleVirtualToolExecute(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TrajectoryID string          `json:"trajectory_id"`
+		StepIndex    int             `json:"step_index"`
+		ToolName     string          `json:"tool_name"`
+		Arguments    json.RawMessage `json:"arguments"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	if tc, ok := s.engine.VirtualizeToolCall(req.TrajectoryID, req.StepIndex, req.ToolName); ok {
+		w.Header().Set("X-TraceReplay-Virtual", "true")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":      "cached_replay",
+			"is_virtual":  true,
+			"tool_name":   tc.ToolName,
+			"output":      tc.Output,
+			"duration_ms": 0,
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":     "live_execution_required",
+		"is_virtual": false,
+		"tool_name":  req.ToolName,
+	})
 }
 
 func (s *Server) handleRunDemo(w http.ResponseWriter, r *http.Request) {

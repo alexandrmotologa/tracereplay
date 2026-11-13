@@ -223,6 +223,12 @@ func (e *Engine) ReplayWithMutation(sourceID string, req models.ReplayRequest) (
 		return nil, nil, err
 	}
 
+	// Apply model hot-switching if requested
+	if req.Mutation != nil && req.Mutation.ModelOverride != nil && *req.Mutation.ModelOverride != "" {
+		forkedTraj.Model = *req.Mutation.ModelOverride
+		_ = e.storage.UpdateTrajectory(forkedTraj)
+	}
+
 	// 2. Hydrate mutated step
 	origStep := parent.Steps[req.FromStep]
 	mutatedPrompt := origStep.Prompt
@@ -301,6 +307,47 @@ func (e *Engine) ReplayWithMutation(sourceID string, req models.ReplayRequest) (
 
 	forkedTraj, _ = e.storage.GetTrajectory(forkedTraj.ID)
 	return forkedTraj, mutatedStep, nil
+}
+
+// VirtualizeToolCall checks if a tool call was already recorded for this trajectory or its parent and returns the cached output.
+func (e *Engine) VirtualizeToolCall(trajectoryID string, stepIndex int, toolName string) (*models.ToolCall, bool) {
+	traj, err := e.storage.GetTrajectory(trajectoryID)
+	if err != nil {
+		return nil, false
+	}
+
+	// First inspect current trajectory steps
+	for _, s := range traj.Steps {
+		if s.StepIndex < stepIndex {
+			for _, tc := range s.ToolCalls {
+				if tc.ToolName == toolName {
+					return &tc, true
+				}
+			}
+		}
+	}
+
+	// If trajectory is a fork, inspect parent trajectory up to fork step
+	if traj.ParentID != nil && *traj.ParentID != "" {
+		parent, err := e.storage.GetTrajectory(*traj.ParentID)
+		if err == nil {
+			maxStep := stepIndex
+			if traj.ForkedAtStep != nil && *traj.ForkedAtStep < maxStep {
+				maxStep = *traj.ForkedAtStep
+			}
+			for _, s := range parent.Steps {
+				if s.StepIndex < maxStep {
+					for _, tc := range s.ToolCalls {
+						if tc.ToolName == toolName {
+							return &tc, true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil, false
 }
 
 // GetStorage returns the underlying storage handle.

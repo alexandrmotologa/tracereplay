@@ -94,3 +94,33 @@ export interface TrajectoryDiff {
   base_status: TrajectoryStatus;
   compare_status: TrajectoryStatus;
 }
+
+export interface RootCauseDiagnostic {
+  trajectory_id: string;
+  failure_step_index: number;
+  root_cause_step_index: number;
+  issue_category: string;
+  severity: string;
+  explanation: string;
+  suggested_prompt: string;
+  suggested_tool_name?: string;
+  suggested_tool_args?: any;
+  confidence_score: number;
+}
+
+export interface StepStability {
+  step_index: number;
+  step_type: string;
+  stability_score: number;
+  is_replay_mock: boolean;
+  drift_risk_factors?: string[];
+}
+
+export interface TrajectoryStabilityReport {
+  trajectory_id: string;
+  overall_determinism_score: number;
+  total_steps: number;
+  zero_drift_steps: number;
+  drift_risk_steps: number;
+  step_stability: StepStability[];
+}

@@ -56,7 +56,19 @@ export async function fetchDiff(baseId: string, compareId: string): Promise<Traj
   return res.json();
 }
 
-export async function exportRegression(id: string, format: 'go' | 'python' | 'json'): Promise<string> {
+export async function fetchDiagnostics(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/trajectories/${id}/diagnostics`);
+  if (!res.ok) throw new Error('Failed to fetch diagnostics');
+  return res.json();
+}
+
+export async function fetchStabilityReport(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/trajectories/${id}/stability`);
+  if (!res.ok) throw new Error('Failed to fetch stability report');
+  return res.json();
+}
+
+export async function exportRegression(id: string, format: 'go' | 'python' | 'ts' | 'otel' | 'json'): Promise<string> {
   const res = await fetch(`${API_BASE}/trajectories/${id}/export?format=${format}`);
   if (!res.ok) throw new Error(`Failed to export regression test in format ${format}`);
   return res.text();

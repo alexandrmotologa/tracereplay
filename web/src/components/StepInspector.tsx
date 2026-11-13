@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Step, Trajectory } from '../types';
+import { Step, Trajectory, RootCauseDiagnostic, TrajectoryStabilityReport } from '../types';
 import {
   Copy,
   Check,
@@ -14,18 +14,24 @@ import {
   FileText,
   Wrench,
   Terminal,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 
 interface StepInspectorProps {
   step?: Step;
   trajectory: Trajectory;
-  onOpenRewindModal: (stepIndex: number) => void;
+  diagnostic?: RootCauseDiagnostic | null;
+  stabilityReport?: TrajectoryStabilityReport | null;
+  onOpenRewindModal: (stepIndex: number, suggestedPrompt?: string, suggestedToolArgs?: any) => void;
   onOpenExportModal: () => void;
 }
 
 export const StepInspector: React.FC<StepInspectorProps> = ({
   step,
   trajectory,
+  diagnostic,
+  stabilityReport,
   onOpenRewindModal,
   onOpenExportModal,
 }) => {
@@ -85,6 +91,11 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
               >
                 {copiedHash ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
               </button>
+              {stabilityReport && stabilityReport.step_stability[step.step_index] && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800">
+                  Stability: {(stabilityReport.step_stability[step.step_index].stability_score * 100).toFixed(0)}%
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -170,7 +181,7 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
           </p>
           <div className="pt-1 flex items-center justify-between">
             <span className="text-[11px] text-slate-400">
-              Use Time-Travel Replay to rewind to an earlier step (e.g., step 8), fix the prompt or parameters, and resume.
+              Use Time-Travel Replay to rewind to an earlier step, fix the prompt or parameters, and resume.
             </span>
             <button
               onClick={() => onOpenRewindModal(step.step_index)}
@@ -178,6 +189,50 @@ export const StepInspector: React.FC<StepInspectorProps> = ({
             >
               Rewind & Fix
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI Root-Cause Diagnostic & Auto-Fix Card */}
+      {diagnostic && (
+        <div className="rounded-2xl bg-gradient-to-r from-purple-950/40 via-surface to-cyan-950/30 border border-purple-500/40 p-4.5 space-y-3 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-xs text-purple-200">
+                  AI Root-Cause Diagnostic ({diagnostic.issue_category})
+                </h3>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Origin isolated at Step #{diagnostic.root_cause_step_index} • Confidence: {(diagnostic.confidence_score * 100).toFixed(0)}%
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() =>
+                onOpenRewindModal(
+                  diagnostic.root_cause_step_index,
+                  diagnostic.suggested_prompt,
+                  diagnostic.suggested_tool_args
+                )
+              }
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-950/40 transition-colors"
+            >
+              <Zap className="w-3.5 h-3.5 fill-current" />
+              <span>Apply Auto-Fix at Step {diagnostic.root_cause_step_index}</span>
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-300 leading-relaxed bg-surface-elevated/70 p-3 rounded-xl border border-surface-border">
+            {diagnostic.explanation}
+          </p>
+
+          <div className="text-[11px] text-purple-300 font-mono flex items-center gap-2">
+            <span className="text-slate-400">Suggested Action:</span>
+            <span>Rewind to step {diagnostic.root_cause_step_index} with validated parameters</span>
           </div>
         </div>
       )}

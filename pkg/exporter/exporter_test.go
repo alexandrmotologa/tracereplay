@@ -83,4 +83,16 @@ func TestExporterFormats(t *testing.T) {
 	if !strings.Contains(pyCode, "hash_002") {
 		t.Errorf("Python test missing step 1 hash")
 	}
+
+	// 4. TypeScript (Vitest/Jest)
+	tsCode, err := ExportTypeScriptTest(traj)
+	if err != nil {
+		t.Fatalf("ExportTypeScriptTest failed: %v", err)
+	}
+	if !strings.Contains(tsCode, "describe(\"TraceReplay Regression Suite") {
+		t.Errorf("TypeScript test missing describe block")
+	}
+	if !strings.Contains(tsCode, "hash_001") {
+		t.Errorf("TypeScript test missing step 0 stateHash")
+	}
 }

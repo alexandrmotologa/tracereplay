@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Trajectory, TrajectoryDiff } from './types';
+import { Trajectory, TrajectoryDiff, RootCauseDiagnostic, TrajectoryStabilityReport } from './types';
 import {
   fetchTrajectories,
   fetchTrajectory,
@@ -7,14 +7,18 @@ import {
   replayTrajectory,
   fetchDiff,
   triggerDemoRun,
+  fetchDiagnostics,
+  fetchStabilityReport,
 } from './lib/api';
 import { Header } from './components/Header';
 import { TrajectoryList } from './components/TrajectoryList';
 import { TimelineScrubber } from './components/TimelineScrubber';
+import { DagView } from './components/DagView';
 import { StepInspector } from './components/StepInspector';
 import { TimeTravelModal } from './components/TimeTravelModal';
 import { DiffViewer } from './components/DiffViewer';
 import { ExportModal } from './components/ExportModal';
+import { Activity, Network } from 'lucide-react';
 
 export function App() {
   const [trajectories, setTrajectories] = useState<Trajectory[]>([]);
@@ -22,10 +26,17 @@ export function App() {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [diffSelection, setDiffSelection] = useState<string[]>([]);
   const [diffData, setDiffData] = useState<TrajectoryDiff | null>(null);
+  const [viewMode, setViewMode] = useState<'timeline' | 'dag'>('timeline');
+
+  // Diagnostics and Stability
+  const [diagnostic, setDiagnostic] = useState<RootCauseDiagnostic | null>(null);
+  const [stabilityReport, setStabilityReport] = useState<TrajectoryStabilityReport | null>(null);
 
   // Modals state
   const [isRewindModalOpen, setIsRewindModalOpen] = useState(false);
   const [rewindTargetStep, setRewindTargetStep] = useState(0);
+  const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
+  const [suggestedToolArgs, setSuggestedToolArgs] = useState<any>(undefined);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
@@ -49,11 +60,29 @@ export function App() {
       const data = await fetchTrajectory(id);
       setSelectedTrajectory(data);
       if (data.steps && data.steps.length > 0) {
-        // Default to last step if failed, else step 0
         const failIdx = data.steps.findIndex((s) => s.status === 'failed');
         setCurrentStepIndex(failIdx !== -1 ? failIdx : 0);
       } else {
         setCurrentStepIndex(0);
+      }
+
+      // Fetch diagnostic & stability concurrently
+      try {
+        const diag = await fetchDiagnostics(id);
+        if (diag && diag.issue_category) {
+          setDiagnostic(diag);
+        } else {
+          setDiagnostic(null);
+        }
+      } catch {
+        setDiagnostic(null);
+      }
+
+      try {
+        const stab = await fetchStabilityReport(id);
+        setStabilityReport(stab);
+      } catch {
+        setStabilityReport(null);
       }
     } catch (err) {
       console.error('Failed to load trajectory details:', err);
@@ -151,8 +180,10 @@ export function App() {
     setTimeout(loadTrajectories, 300);
   };
 
-  const handleOpenRewindModal = (stepIndex: number) => {
+  const handleOpenRewindModal = (stepIndex: number, promptText?: string, toolArgs?: any) => {
     setRewindTargetStep(stepIndex);
+    setSuggestedPrompt(promptText);
+    setSuggestedToolArgs(toolArgs);
     setIsRewindModalOpen(true);
   };
 
@@ -192,18 +223,73 @@ export function App() {
         <main className="flex-1 flex flex-col overflow-hidden bg-background">
           {selectedTrajectory ? (
             <>
-              {/* Interactive Scrubber */}
-              <TimelineScrubber
-                steps={selectedTrajectory.steps || []}
-                currentStepIndex={currentStepIndex}
-                onSelectStep={(idx) => setCurrentStepIndex(idx)}
-                onOpenRewindModal={handleOpenRewindModal}
-              />
+              {/* View Mode Switcher Strip */}
+              <div className="px-5 py-2 border-b border-surface-border bg-surface flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs text-slate-200 truncate max-w-sm">
+                    {selectedTrajectory.name}
+                  </span>
+                  <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/60">
+                    {selectedTrajectory.model}
+                  </span>
+                  {stabilityReport && (
+                    <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                      {stabilityReport.overall_determinism_score.toFixed(0)}% Deterministic
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 bg-surface-elevated p-1 rounded-lg border border-surface-border text-xs">
+                  <button
+                    onClick={() => setViewMode('timeline')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors font-medium ${
+                      viewMode === 'timeline'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>Timeline Scrubber</span>
+                  </button>
+
+                  <button
+                    onClick={() => setViewMode('dag')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors font-medium ${
+                      viewMode === 'dag'
+                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    <span>Execution DAG Flow</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* View Mode: Timeline vs DAG */}
+              {viewMode === 'timeline' ? (
+                <TimelineScrubber
+                  steps={selectedTrajectory.steps || []}
+                  currentStepIndex={currentStepIndex}
+                  onSelectStep={(idx) => setCurrentStepIndex(idx)}
+                  onOpenRewindModal={(idx) => handleOpenRewindModal(idx)}
+                />
+              ) : (
+                <DagView
+                  trajectory={selectedTrajectory}
+                  steps={selectedTrajectory.steps || []}
+                  currentStepIndex={currentStepIndex}
+                  onSelectStep={(idx) => setCurrentStepIndex(idx)}
+                  onOpenRewindModal={(idx) => handleOpenRewindModal(idx)}
+                />
+              )}
 
               {/* Step Deep Inspector */}
               <StepInspector
                 step={currentStep}
                 trajectory={selectedTrajectory}
+                diagnostic={diagnostic}
+                stabilityReport={stabilityReport}
                 onOpenRewindModal={handleOpenRewindModal}
                 onOpenExportModal={() => setIsExportModalOpen(true)}
               />
@@ -236,10 +322,16 @@ export function App() {
       {/* Modals */}
       <TimeTravelModal
         isOpen={isRewindModalOpen}
-        onClose={() => setIsRewindModalOpen(false)}
+        onClose={() => {
+          setIsRewindModalOpen(false);
+          setSuggestedPrompt(undefined);
+          setSuggestedToolArgs(undefined);
+        }}
         stepIndex={rewindTargetStep}
         totalSteps={selectedTrajectory?.steps?.length || 0}
         step={selectedTrajectory?.steps ? selectedTrajectory.steps[rewindTargetStep] : undefined}
+        initialPrompt={suggestedPrompt}
+        initialToolArgs={suggestedToolArgs}
         onConfirmReplay={handleConfirmReplay}
       />
 

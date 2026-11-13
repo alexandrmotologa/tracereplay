@@ -109,6 +109,7 @@ type ForkRequest struct {
 
 // ReplayMutation defines edits made to a step during time-travel resumption.
 type ReplayMutation struct {
+	ModelOverride     *string         `json:"model_override,omitempty"`
 	Prompt            *string         `json:"prompt,omitempty"`
 	ToolCallOverride  *ToolOverride   `json:"tool_call_override,omitempty"`
 	MemoryOverrides   json.RawMessage `json:"memory_overrides,omitempty"`

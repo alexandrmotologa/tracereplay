@@ -8,10 +8,13 @@ interface TimeTravelModalProps {
   stepIndex: number;
   totalSteps: number;
   step?: Step;
+  initialPrompt?: string;
+  initialToolArgs?: any;
   onConfirmReplay: (payload: {
     from_step: number;
     name?: string;
     mutation?: {
+      model_override?: string;
       prompt?: string;
       tool_call_override?: {
         tool_name: string;
@@ -28,35 +31,44 @@ export const TimeTravelModal: React.FC<TimeTravelModalProps> = ({
   stepIndex,
   totalSteps,
   step,
+  initialPrompt,
+  initialToolArgs,
   onConfirmReplay,
 }) => {
   const [targetStep, setTargetStep] = useState<number>(stepIndex);
   const [branchName, setBranchName] = useState<string>('');
+  const [modelOverride, setModelOverride] = useState<string>('');
   const [mutatedPrompt, setMutatedPrompt] = useState<string>('');
   const [mutatedToolName, setMutatedToolName] = useState<string>('');
   const [mutatedToolArgs, setMutatedToolArgs] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync state when step changes
+  // Sync state when step or initial props change
   React.useEffect(() => {
     setTargetStep(stepIndex);
     setBranchName(`repaired-run-from-step-${stepIndex}`);
-    if (step) {
+    if (initialPrompt) {
+      setMutatedPrompt(initialPrompt);
+    } else if (step) {
       setMutatedPrompt(step.prompt || '');
-      if (step.tool_calls && step.tool_calls.length > 0) {
-        setMutatedToolName(step.tool_calls[0].tool_name);
-        setMutatedToolArgs(
-          typeof step.tool_calls[0].arguments === 'string'
-            ? step.tool_calls[0].arguments
-            : JSON.stringify(step.tool_calls[0].arguments, null, 2)
-        );
-      } else {
-        setMutatedToolName('');
-        setMutatedToolArgs('');
-      }
     }
-  }, [stepIndex, step]);
+
+    if (initialToolArgs) {
+      setMutatedToolName(step?.tool_calls?.[0]?.tool_name || 'run_migration');
+      setMutatedToolArgs(JSON.stringify(initialToolArgs, null, 2));
+    } else if (step?.tool_calls && step.tool_calls.length > 0) {
+      setMutatedToolName(step.tool_calls[0].tool_name);
+      setMutatedToolArgs(
+        typeof step.tool_calls[0].arguments === 'string'
+          ? step.tool_calls[0].arguments
+          : JSON.stringify(step.tool_calls[0].arguments, null, 2)
+      );
+    } else {
+      setMutatedToolName('');
+      setMutatedToolArgs('');
+    }
+  }, [stepIndex, step, initialPrompt, initialToolArgs]);
 
   if (!isOpen) return null;
 
@@ -79,6 +91,7 @@ export const TimeTravelModal: React.FC<TimeTravelModalProps> = ({
         from_step: targetStep,
         name: branchName.trim() || undefined,
         mutation: {
+          model_override: modelOverride.trim() || undefined,
           prompt: mutatedPrompt !== step?.prompt ? mutatedPrompt : undefined,
           tool_call_override:
             mutatedToolName && parsedToolArgs
@@ -141,8 +154,8 @@ export const TimeTravelModal: React.FC<TimeTravelModalProps> = ({
             </div>
           </div>
 
-          {/* Step Selector & Branch Name */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Step Selector, Branch Name & Model Override */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
                 Rewind Step Index
@@ -162,7 +175,7 @@ export const TimeTravelModal: React.FC<TimeTravelModalProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Branch Trajectory Name
+                Branch Name
               </label>
               <input
                 type="text"
@@ -170,6 +183,19 @@ export const TimeTravelModal: React.FC<TimeTravelModalProps> = ({
                 onChange={(e) => setBranchName(e.target.value)}
                 placeholder="repaired-run-v1"
                 className="w-full bg-surface-elevated border border-surface-border rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Model Hot-Switch (Opt.)
+              </label>
+              <input
+                type="text"
+                value={modelOverride}
+                onChange={(e) => setModelOverride(e.target.value)}
+                placeholder="e.g. ollama/qwen2.5"
+                className="w-full bg-surface-elevated border border-surface-border rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
               />
             </div>
           </div>

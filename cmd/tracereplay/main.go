@@ -129,6 +129,24 @@ func cmdServe(args []string) {
 	}
 }
 
+type recordConsoleBroadcaster struct{}
+
+func (b *recordConsoleBroadcaster) Broadcast(eventType string, payload any) {
+	if eventType == "step_recorded" {
+		if step, ok := payload.(*models.Step); ok {
+			label := string(step.StepType)
+			if len(step.ToolCalls) > 0 {
+				label = fmt.Sprintf("TOOL: %s", step.ToolCalls[0].ToolName)
+			}
+			icon := "✓"
+			if step.Status == models.StepStatusFailed {
+				icon = "❌ FAILED"
+			}
+			fmt.Printf("  ├── Step %02d [%-22s] %4dms %s\n", step.StepIndex, label, step.DurationMS, icon)
+		}
+	}
+}
+
 func cmdRecord(args []string) {
 	var targetCmd []string
 	var dbPath string = "./trajectories.db"
@@ -162,13 +180,11 @@ func cmdRecord(args []string) {
 	}
 	defer store.Close()
 
-	hub := server.NewHub()
-	eng := engine.New(store, hub)
+	eng := engine.New(store, &recordConsoleBroadcaster{})
 	prx := proxy.New(eng, "", "")
 
 	srv := server.New(server.Config{
 		Engine: eng,
-		Hub:    hub,
 		Proxy:  prx,
 	})
 
@@ -405,8 +421,15 @@ func cmdExport(args []string) {
 			os.Exit(1)
 		}
 		content = code
+	case "ts", "typescript", "vitest", "jest":
+		code, err := exporter.ExportTypeScriptTest(traj)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Export TypeScript test failed: %v\n", err)
+			os.Exit(1)
+		}
+		content = code
 	default:
-		fmt.Fprintf(os.Stderr, "Unsupported format: %s (supported: go, python, pytest, json)\n", *format)
+		fmt.Fprintf(os.Stderr, "Unsupported format: %s (supported: go, python, pytest, ts, vitest, json)\n", *format)
 		os.Exit(1)
 	}
 
