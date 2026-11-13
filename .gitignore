@@ -1,0 +1,36 @@
+# Binaries
+bin/
+/dist/
+web/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/tracereplay
+
+# Test artifacts & databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+tests/output/
+coverage.out
+
+# Dependencies
+vendor/
+node_modules/
+
+# Node build artifacts
+web/dist/
+web/node_modules/
+*.tsbuildinfo
+.npm/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
